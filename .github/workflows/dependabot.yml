@@ -1,0 +1,45 @@
+name: Dependabot Pull Request
+
+on:
+  pull_request_target:
+    branches: [master]
+
+env:
+  CI: true
+  gitVersion: ${{ github.ref }}
+  NODE_VERSION: "18.12.1"
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+
+    if: github.actor == 'dependabot[bot]'
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v3
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: Install Node JS
+        uses: actions/setup-node@v3
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Install
+        run: npm ci
+
+      - name: Test
+        run: npm test
+
+      - name: Auto Approve PR
+        env:
+          GITHUB_TOKEN: ${{ steps.get_token.outputs.app_token }}
+          PR_ID: ${{ github.event.pull_request.number }}
+        run: gh pr review --approve "$PR_ID"
+
+      - name: Activate auto-merge
+        env:
+          GITHUB_TOKEN: ${{ steps.get_token.outputs.app_token }}
+          PR_ID: ${{ github.event.pull_request.number }}
+        run: gh pr merge -s --auto "$PR_ID"

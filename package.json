@@ -43,15 +43,21 @@
         }
     },
     "dependencies": {
-        "aws-xray-sdk-core": "^3.5.0",
-        "injection-js": "^2.4.0",
-        "pino": "^8.14.1",
-        "reflect-metadata": "^0.1.13",
         "ajv": "^8.12.0",
         "ajv-errors": "^3.0.0",
-        "ajv-keywords": "^5.1.0"
+        "ajv-keywords": "^5.1.0",
+        "injection-js": "^2.4.0",
+        "pino": "^8.14.1",
+        "reflect-metadata": "^0.1.13"
     },
     "devDependencies": {
+        "@aws-sdk/client-dynamodb": "^3.363.0",
+        "@aws-sdk/client-eventbridge": "^3.363.0",
+        "@aws-sdk/client-s3": "^3.363.0",
+        "@aws-sdk/client-sfn": "^3.363.0",
+        "@aws-sdk/client-sqs": "^3.363.0",
+        "@aws-sdk/client-sns": "^3.363.0",
+        "@aws-sdk/client-ssm": "^3.363.0",
         "@types/ajv": "^1.0.0",
         "@types/ajv-errors": "^2.0.1",
         "@types/aws-lambda": "^8.10.119",
@@ -60,7 +66,6 @@
         "@types/pino": "^7.0.5",
         "@typescript-eslint/eslint-plugin": "^5.60.1",
         "@typescript-eslint/parser": "^5.60.1",
-        "aws-sdk": "^2.1408.0",
         "eslint": "^8.43.0",
         "jest": "^29.5.0",
         "ts-jest": "^29.1.1",
@@ -68,7 +73,12 @@
         "typescript": "^5.1.6"
     },
     "peerDependencies": {
-        "@types/aws-lambda": "^8.10.119",
-        "aws-sdk": "^2.1408.0"
+        "@aws-sdk/client-dynamodb": "^3.363.0",
+        "@aws-sdk/client-eventbridge": "^3.363.0",
+        "@aws-sdk/client-s3": "^3.363.0",
+        "@aws-sdk/client-sfn": "^3.363.0",
+        "@aws-sdk/client-sqs": "^3.363.0",
+        "@aws-sdk/client-sns": "^3.363.0",
+        "@aws-sdk/client-ssm": "^3.363.0"
     }
 }

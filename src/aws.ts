@@ -1,69 +1,15 @@
-import { DynamoDB, S3, SQS, SNS, SSM, StepFunctions, EventBridge, Athena } from 'aws-sdk';
 import { Provider } from './interfaces';
 
 import { Context } from 'aws-lambda';
+import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
+import { S3Client } from '@aws-sdk/client-s3';
+import { SQSClient } from '@aws-sdk/client-sqs';
+import { SNSClient } from '@aws-sdk/client-sns';
+import { SSMClient } from '@aws-sdk/client-ssm';
+import { SFNClient } from '@aws-sdk/client-sfn';
+import { EventBridgeClient } from '@aws-sdk/client-eventbridge';
 
 export { Context };
-
-interface Params {
-    service: string;
-    options?: any;
-}
-
-let aws = require('aws-sdk');
-
-// X-RAY
-if (!process.env.DISABLE_XRAY) {
-    const AWSXRay = require('aws-xray-sdk-core');
-    aws = AWSXRay.captureAWS(require('aws-sdk'));
-}
-
-/**
- * LocalStack Mapping Ports
- *
- * @param service
- */
-function getServicePort(service: string): string {
-    switch (service) {
-        case 's3':
-            return '4572';
-        case 'dynamodb':
-            return '4569';
-        case 'sqs':
-            return '4576';
-        case 'sns':
-            return '4575';
-        case 'ssm':
-            return '4583';
-        case 'step-functions':
-            return '4585';
-        case 'event-bridge':
-            return '4587';
-    }
-}
-
-function params(params: Params) {
-    return process.env.AWS_SAM_LOCAL &&
-        process.env.USE_LOCALSTACK &&
-        process.env.USE_LOCALSTACK !== 'false'
-        ? {
-              ...(params.options || {}),
-              endpoint: `http://localstack:${getServicePort(params.service)}`
-          }
-        : params.options;
-}
-
-/**
- * Check if backend services is present, return providers for the DI
- */
-export const AWSEkonooServices = () => {
-    try {
-        const backendCommon = require('@ekonoo/backend-common');
-        return (backendCommon && backendCommon.PROVIDERS) || [];
-    } catch {
-        return [];
-    }
-};
 
 /**
  * Provide a list of AWS Services for the Lambda DI
@@ -73,49 +19,38 @@ export const AWSEkonooServices = () => {
 export const AWSProviders = () =>
     [
         {
-            provide: DynamoDB.DocumentClient,
-            useFactory: () =>
-                new aws.DynamoDB.DocumentClient(
-                    params({
-                        service: 'dynamodb',
-                        options: { httpOptions: { connectTimeout: 500 } }
-                    })
-                ),
+            provide: DynamoDBClient,
+            useFactory: () => new DynamoDBClient({}),
             deps: []
         },
         {
-            provide: S3,
-            useFactory: () => new aws.S3(params({ service: 's3' })),
+            provide: S3Client,
+            useFactory: () => new S3Client({}),
             deps: []
         },
         {
-            provide: SQS,
-            useFactory: () => new aws.SQS(params({ service: 'sqs' })),
+            provide: SQSClient,
+            useFactory: () => new SQSClient({}),
             deps: []
         },
         {
-            provide: SNS,
-            useFactory: () => new aws.SNS(params({ service: 'sns' })),
+            provide: SNSClient,
+            useFactory: () => new SNSClient({}),
             deps: []
         },
         {
-            provide: SSM,
-            useFactory: () => new aws.SSM(params({ service: 'ssm' })),
+            provide: SSMClient,
+            useFactory: () => new SSMClient({}),
             deps: []
         },
         {
-            provide: StepFunctions,
-            useFactory: () => new aws.StepFunctions(params({ service: 'step-functions' })),
+            provide: SFNClient,
+            useFactory: () => new SFNClient({}),
             deps: []
         },
         {
-            provide: EventBridge,
-            useFactory: () => new aws.EventBridge(params({ service: 'event-bridge' })),
-            deps: []
-        },
-        {
-            provide: Athena,
-            useFactory: () => new aws.Athena(),
+            provide: EventBridgeClient,
+            useFactory: () => new EventBridgeClient({}),
             deps: []
         }
     ] as Provider[];

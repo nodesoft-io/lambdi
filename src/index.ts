@@ -1,10 +1,9 @@
 import 'reflect-metadata';
 import { Type } from './interfaces';
 import { DependencyInjection } from './di';
-import { AWSEkonooServices, AWSProviders, Context } from './aws';
+import { AWSProviders, Context } from './aws';
 import { extractMetadataFromLambda } from './metadata';
 import { Lambda } from './decorators';
-import { SQS } from 'aws-sdk';
 import { APIGatewayProxyResult, SQSRecord, APIGatewayProxyEvent } from 'aws-lambda';
 import { applySQSPartialBatchFailure } from './partial-failure';
 import { ReflectiveInjector } from 'injection-js';
@@ -18,6 +17,7 @@ import {
     SECURITY_HEADERS
 } from './api';
 import { Logger, PinoLogger } from './logger';
+import { SQSClient } from '@aws-sdk/client-sqs';
 
 export * from './decorators';
 export * from './interfaces';
@@ -56,7 +56,7 @@ function processPartialBatchFailure<E, R>(
                 partialBatchFailureCheck(metadata, item)
             )
         ) {
-            return applySQSPartialBatchFailure(event as any, result, di.get(SQS));
+            return applySQSPartialBatchFailure(event as any, result, di.get(SQSClient));
         }
         return Promise.all(result);
     }
@@ -126,9 +126,11 @@ export interface LambdaFunction {
  * @param providers Provider list for the DI
  * @param options
  */
-export function generateHandler<E extends { Records?: any[] } & Record<string, any>, R, T extends LambdaFunction = LambdaFunction>(
-    token: Type<T>
-): HandlerFunction<E, R, typeof token> {
+export function generateHandler<
+    E extends { Records?: any[] } & Record<string, any>,
+    R,
+    T extends LambdaFunction = LambdaFunction
+>(token: Type<T>): HandlerFunction<E, R, typeof token> {
     const metadata = extractMetadataFromLambda(token);
     const logger = PinoLogger.build(
         (global as any)?.DOMAIN,
@@ -152,7 +154,7 @@ export function generateHandler<E extends { Records?: any[] } & Record<string, a
 
     const di = DependencyInjection.createAndResolve(
         []
-            .concat(AWSProviders(), AWSEkonooServices(), metadata.providers, {
+            .concat(AWSProviders(), metadata.providers, {
                 provide: Logger,
                 useValue: logger
             })
@@ -176,7 +178,7 @@ export function generateHandler<E extends { Records?: any[] } & Record<string, a
         if (
             isApiRequest &&
             metadata.allowedGroups?.length &&
-            !isInAllowedGroups((event as unknown) as APIGatewayProxyEvent, metadata.allowedGroups)
+            !isInAllowedGroups(event as unknown as APIGatewayProxyEvent, metadata.allowedGroups)
         ) {
             return Promise.resolve(
                 injectCors(

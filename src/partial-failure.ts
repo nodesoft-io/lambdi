@@ -1,4 +1,8 @@
-import { SQS } from 'aws-sdk';
+import {
+    DeleteMessageBatchCommand,
+    DeleteMessageBatchRequestEntry,
+    SQSClient
+} from '@aws-sdk/client-sqs';
 import { SQSEvent, SQSRecord } from 'aws-lambda';
 
 /**
@@ -7,9 +11,9 @@ import { SQSEvent, SQSRecord } from 'aws-lambda';
  * @param sqs
  * @param eventSourceARN
  */
-function getQueueUrl(sqs: SQS, eventSourceARN: string): string {
+function getQueueUrl(sqs: SQSClient, eventSourceARN: string): string {
     const [, , , , accountId, queueName] = eventSourceARN.split(':');
-    return `${sqs.endpoint.href}${accountId}/${queueName}`;
+    return `${sqs.config.endpoint}${accountId}/${queueName}`;
 }
 
 /**
@@ -51,22 +55,23 @@ function getErrorMessage(errors: Error[]): string {
  * @param sqs
  * @param records
  */
-async function deleteSQSMessages(sqs: SQS, records: SQSRecord[]) {
+async function deleteSQSMessages(sqs: SQSClient, records: SQSRecord[]) {
     if (!(records && records.length)) {
         return Promise.resolve();
     }
     return sqs
-        .deleteMessageBatch({
-            Entries: []
-                .concat(records)
-                .filter(Boolean)
-                .map((record: SQSRecord, k) => ({
-                    Id: `${k}`,
-                    ReceiptHandle: record.receiptHandle
-                })) as SQS.DeleteMessageBatchRequestEntry[],
-            QueueUrl: getQueueUrl(sqs, records[0].eventSourceARN)
-        })
-        .promise()
+        .send(
+            new DeleteMessageBatchCommand({
+                Entries: []
+                    .concat(records)
+                    .filter(Boolean)
+                    .map((record: SQSRecord, k) => ({
+                        Id: `${k}`,
+                        ReceiptHandle: record.receiptHandle
+                    })) as DeleteMessageBatchRequestEntry[],
+                QueueUrl: getQueueUrl(sqs, records[0].eventSourceARN)
+            })
+        )
         .catch();
 }
 
@@ -80,7 +85,7 @@ async function deleteSQSMessages(sqs: SQS, records: SQSRecord[]) {
 export async function applySQSPartialBatchFailure<R>(
     event: SQSEvent,
     promises: Promise<R>[],
-    sqs: SQS
+    sqs: SQSClient
 ): Promise<R[]> {
     return Promise.allSettled(promises).then((results) => {
         const errors = getRejectedErrors(results);

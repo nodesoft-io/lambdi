@@ -1,5 +1,5 @@
 import { Lambda, generateHandler, Event, PathParams, ApiResponse, QueryParams, Cors } from '../src';
-import { Simple, Required, Item } from '@ekonoo/models';
+import { Simple, Required, Item } from '../src/models';
 
 describe('Unit tests', () => {
     test('API Integration', () => {
@@ -11,9 +11,10 @@ describe('Unit tests', () => {
             @Simple age: number;
         }
         class Query {
-             @Item(String)
-             @Simple queryValues: string[];
-             @Simple querySingleValue: string;
+            @Item(String)
+            @Simple
+            queryValues: string[];
+            @Simple querySingleValue: string;
         }
         @Lambda()
         class MyLambda {
@@ -32,24 +33,27 @@ describe('Unit tests', () => {
                 };
             }
         }
-        (generateHandler(MyLambda as any)(
-            {
-                test: true,
-                headers: {},
-                pathParameters: { foo: 'qbcd', bar: true },
-                queryStringParameters: {querySingleValue : 'querySingleValue'},
-                multiValueQueryStringParameters: {queryValues : ['queryValues1', 'queryValues2']},
-                requestContext: { apiId: '123' }
-            },
-            {} as any
-        ) as any).then(() => {});
+        (
+            generateHandler(MyLambda as any)(
+                {
+                    test: true,
+                    headers: {},
+                    pathParameters: { foo: 'qbcd', bar: true },
+                    queryStringParameters: { querySingleValue: 'querySingleValue' },
+                    multiValueQueryStringParameters: {
+                        queryValues: ['queryValues1', 'queryValues2']
+                    },
+                    requestContext: { apiId: '123' }
+                },
+                {} as any
+            ) as any
+        ).then(() => {});
     });
 
     test('API Integration with Promise', () => {
         class Path {
             @Simple foo: string;
         }
-
 
         @Lambda()
         class MyLambda {
@@ -66,68 +70,94 @@ describe('Unit tests', () => {
                 });
             }
         }
-        (generateHandler(MyLambda as any)(
-            {
-                test: true,
-                pathParameters: { foo: 'qbcd', bar: true },
-                headers: {Origin: 'http://test.lu'},
-                requestContext: { apiId: '123' }
-            },
-            {} as any
-        ) as any).then((r: any) => {
-            expect(r.headers).toEqual({ 'Access-Control-Allow-Origin': 'http://test.lu' });
-            });
-            @Lambda()
-            class MyLambdaWithWildcard {
-                @Cors('*')
-                onHandler(@PathParams path: Path, @Event event: any): any {
-                    expect(event.test).toBeTruthy();
-                    expect(path.foo).toStrictEqual('qbcd');
-                    expect((path as any).bar).toBeUndefined();
-                    return Promise.resolve({
-                        statusCode: 200,
-                        body: {
-                            name: path.foo
-                        }
-                    });
-                }
-            }
-            (generateHandler(MyLambdaWithWildcard as any)(
+        (
+            generateHandler(MyLambda as any)(
                 {
                     test: true,
                     pathParameters: { foo: 'qbcd', bar: true },
-                    headers: {Origin: 'http://test.lu'},
+                    headers: { Origin: 'http://test.lu' },
                     requestContext: { apiId: '123' }
                 },
                 {} as any
-            ) as any).then((r: any) => {
-                expect(r.headers).toEqual({ 'Access-Control-Allow-Origin': 'http://test.lu' });
-                });
-                @Lambda()
-                class MyLambdaWithWithoutCors {
-                    onHandler(@PathParams path: Path, @Event event: any): any {
-                        expect(event.test).toBeTruthy();
-                        expect(path.foo).toStrictEqual('qbcd');
-                        expect((path as any).bar).toBeUndefined();
-                        return Promise.resolve({
-                            statusCode: 200,
-                            body: {
-                                name: path.foo
-                            }
-                        });
+            ) as any
+        ).then((r: any) => {
+            expect(r.headers).toEqual({
+                'Access-Control-Allow-Origin': 'http://test.lu',
+                'Cache-Control': 'no-store, max-age=0',
+                'Content-Security-Policy': "default-src 'none';",
+                'Strict-Transport-Security': 'max-age=31536000; includeSubDomains', // HSTS 1y
+                'X-Content-Type-Options': 'nosniff',
+                'X-Frame-Options': 'SAMEORIGIN'
+            });
+        });
+        @Lambda()
+        class MyLambdaWithWildcard {
+            @Cors('*')
+            onHandler(@PathParams path: Path, @Event event: any): any {
+                expect(event.test).toBeTruthy();
+                expect(path.foo).toStrictEqual('qbcd');
+                expect((path as any).bar).toBeUndefined();
+                return Promise.resolve({
+                    statusCode: 200,
+                    body: {
+                        name: path.foo
                     }
-                }
-                (generateHandler(MyLambdaWithWithoutCors as any)(
-                    {
-                        test: true,
-                        pathParameters: { foo: 'qbcd', bar: true },
-                        headers: {Origin: 'http://test.lu'},
-                        requestContext: { apiId: '123' }
-                    },
-                    {} as any
-                ) as any).then((r: any) => {
-                    expect(r.headers).toEqual({});
-                    });
+                });
+            }
+        }
+        (
+            generateHandler(MyLambdaWithWildcard as any)(
+                {
+                    test: true,
+                    pathParameters: { foo: 'qbcd', bar: true },
+                    headers: { Origin: 'http://test.lu' },
+                    requestContext: { apiId: '123' }
+                },
+                {} as any
+            ) as any
+        ).then((r: any) => {
+            expect(r.headers).toEqual({
+                'Access-Control-Allow-Origin': 'http://test.lu',
+                'Cache-Control': 'no-store, max-age=0',
+                'Content-Security-Policy': "default-src 'none';",
+                'Strict-Transport-Security': 'max-age=31536000; includeSubDomains', // HSTS 1y
+                'X-Content-Type-Options': 'nosniff',
+                'X-Frame-Options': 'SAMEORIGIN'
+            });
+        });
+        @Lambda()
+        class MyLambdaWithWithoutCors {
+            onHandler(@PathParams path: Path, @Event event: any): any {
+                expect(event.test).toBeTruthy();
+                expect(path.foo).toStrictEqual('qbcd');
+                expect((path as any).bar).toBeUndefined();
+                return Promise.resolve({
+                    statusCode: 200,
+                    body: {
+                        name: path.foo
+                    }
+                });
+            }
+        }
+        (
+            generateHandler(MyLambdaWithWithoutCors as any)(
+                {
+                    test: true,
+                    pathParameters: { foo: 'qbcd', bar: true },
+                    headers: { Origin: 'http://test.lu' },
+                    requestContext: { apiId: '123' }
+                },
+                {} as any
+            ) as any
+        ).then((r: any) => {
+            expect(r.headers).toEqual({
+                'Cache-Control': 'no-store, max-age=0',
+                'Content-Security-Policy': "default-src 'none';",
+                'Strict-Transport-Security': 'max-age=31536000; includeSubDomains', // HSTS 1y
+                'X-Content-Type-Options': 'nosniff',
+                'X-Frame-Options': 'SAMEORIGIN'
+            });
+        });
     });
 
     test('API 400 error', async () => {
@@ -146,17 +176,19 @@ describe('Unit tests', () => {
                 });
             }
         }
-        return (generateHandler(MyLambda as any)(
-            {
-                pathParameters: {},
-                headers: {},
-                requestContext: { apiId: '123' }
-            },
-            {} as any
-        ) as any).then((res: any) =>
+        return (
+            generateHandler(MyLambda as any)(
+                {
+                    pathParameters: {},
+                    headers: {},
+                    requestContext: { apiId: '123' }
+                },
+                {} as any
+            ) as any
+        ).then((res: any) =>
             expect(res).toMatchObject({
                 statusCode: 400,
-                body: `{"message":"Path: error while validating Path: data should have required property 'foo'"}`
+                body: `{"message":"Path: error while validating Path: data must have required property 'foo'"}`
             })
         );
     });
@@ -167,7 +199,7 @@ describe('Unit tests', () => {
         };
         const context = {
             ctx: 'ctx'
-        }
+        };
         class Path {
             @Required foo: string;
         }
@@ -186,17 +218,16 @@ describe('Unit tests', () => {
             onError(_event: any, _context: any, err: Error): any {
                 expect(_event).toBe(event);
                 expect(_context).toBe(context);
-                expect(err.message).toBe(`Path: error while validating Path: data should have required property 'foo'`);
+                expect(err.message).toBe(
+                    `Path: error while validating Path: data must have required property 'foo'`
+                );
                 return {
                     statusCode: 200,
                     body: 'not ok :)'
                 };
             }
         }
-        return (generateHandler(MyLambda as any)(
-            event,
-            context as any
-        ) as any).then((res: any) =>
+        return (generateHandler(MyLambda as any)(event, context as any) as any).then((res: any) =>
             expect(res).toMatchObject({
                 statusCode: 200,
                 body: `not ok :)`

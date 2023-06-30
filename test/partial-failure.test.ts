@@ -1,8 +1,8 @@
 /* eslint-disable @typescript-eslint/explicit-function-return-type */
-import { Required, Simple } from '@ekonoo/models';
+import { Required, Simple } from '../src/models';
 import { Event, generateHandler, Lambda, SQSRecord } from '../src';
 import { SQSEvent } from 'aws-lambda';
-import { SQS } from 'aws-sdk';
+import { DeleteMessageBatchCommand, SQSClient } from '@aws-sdk/client-sqs';
 
 describe('Partial Failure Unit tests', () => {
     afterEach(() => {
@@ -57,17 +57,19 @@ describe('Partial Failure Unit tests', () => {
             partialBatchFailure: true,
             providers: [
                 {
-                    provide: SQS,
+                    provide: SQSClient,
                     useValue: {
-                        deleteMessageBatch: (params: any) => {
-                            expect(params).toMatchObject({
-                                Entries: [{ Id: '0', ReceiptHandle: 'abcdef' }],
-                                QueueUrl: 'http://href/1234567890/Queue.fifo'
-                            });
-                            return { promise: () => Promise.resolve() };
+                        send: (params: any) => {
+                            expect(params.input).toMatchObject(
+                                new DeleteMessageBatchCommand({
+                                    Entries: [{ Id: '0', ReceiptHandle: 'abcdef' }],
+                                    QueueUrl: 'http://href/1234567890/Queue.fifo'
+                                }).input
+                            );
+                            return Promise.resolve();
                         },
-                        endpoint: {
-                            href: 'http://href/'
+                        config: {
+                            endpoint: 'http://href/'
                         }
                     }
                 }
@@ -79,51 +81,52 @@ describe('Partial Failure Unit tests', () => {
             }
 
             onHandler(@Event e: SQSEvent) {
-                return e.Records.map((_, i) => i === 0 ? Promise.resolve(true) : this.fail());
+                return e.Records.map((_, i) => (i === 0 ? Promise.resolve(true) : this.fail()));
             }
         }
 
-        const handler = (generateHandler(MyLambda2)(
-            {
-                Records: [
-                    {
-                        attributes: {} as any,
-                        awsRegion: 'eu-west-1',
-                        md5OfBody: 'FFFFF',
-                        messageAttributes: {},
-                        messageId: 'mid1',
-                        body: 'body_1',
-                        receiptHandle: 'abcdef',
-                        eventSource: 'aws:sqs',
-                        eventSourceARN: 'arn:aws:sqs:eu-west-1:1234567890:Queue.fifo'
-                    },
-                    {
-                        attributes: {} as any,
-                        awsRegion: 'eu-west-1',
-                        md5OfBody: 'FFFFF',
-                        messageAttributes: {},
-                        messageId: 'mid2',
-                        body: 'body_2',
-                        receiptHandle: 'ghijklm',
-                        eventSource: 'aws:sqs',
-                        eventSourceARN: 'arn:aws:sqs:eu-west-1:1234567890:Queue.fifo'
-                    },
-                    {
-                        attributes: {} as any,
-                        awsRegion: 'eu-west-1',
-                        md5OfBody: 'FFFFF',
-                        messageAttributes: {},
-                        messageId: 'mid3',
-                        body: 'body_3',
-                        receiptHandle: 'ghijklm',
-                        eventSource: 'aws:sqs',
-                        eventSourceARN: 'arn:aws:sqs:eu-west-1:1234567890:Queue.fifo'
-                    }
-                ]
-            },
-            {} as any
-        ) as Promise<boolean[]>).then(() => {
-        });
+        const handler = (
+            generateHandler(MyLambda2)(
+                {
+                    Records: [
+                        {
+                            attributes: {} as any,
+                            awsRegion: 'eu-west-1',
+                            md5OfBody: 'FFFFF',
+                            messageAttributes: {},
+                            messageId: 'mid1',
+                            body: 'body_1',
+                            receiptHandle: 'abcdef',
+                            eventSource: 'aws:sqs',
+                            eventSourceARN: 'arn:aws:sqs:eu-west-1:1234567890:Queue.fifo'
+                        },
+                        {
+                            attributes: {} as any,
+                            awsRegion: 'eu-west-1',
+                            md5OfBody: 'FFFFF',
+                            messageAttributes: {},
+                            messageId: 'mid2',
+                            body: 'body_2',
+                            receiptHandle: 'ghijklm',
+                            eventSource: 'aws:sqs',
+                            eventSourceARN: 'arn:aws:sqs:eu-west-1:1234567890:Queue.fifo'
+                        },
+                        {
+                            attributes: {} as any,
+                            awsRegion: 'eu-west-1',
+                            md5OfBody: 'FFFFF',
+                            messageAttributes: {},
+                            messageId: 'mid3',
+                            body: 'body_3',
+                            receiptHandle: 'ghijklm',
+                            eventSource: 'aws:sqs',
+                            eventSourceARN: 'arn:aws:sqs:eu-west-1:1234567890:Queue.fifo'
+                        }
+                    ]
+                },
+                {} as any
+            ) as Promise<boolean[]>
+        ).then(() => {});
 
         return handler.catch((err) => {
             expect(err.message).toStrictEqual('failed');
@@ -141,21 +144,20 @@ describe('Partial Failure Unit tests', () => {
             @Lambda({
                 providers: [
                     {
-                        provide: SQS,
+                        provide: SQSClient,
                         useValue: {
-                            deleteMessageBatch: (params: any) => {
+                            send: (params: any) => {
                                 deleteCounter.push(params);
-                                return { promise: () => Promise.resolve() };
+                                return Promise.resolve();
                             },
-                            endpoint: {
-                                href: 'http://href/'
+                            config: {
+                                endpoint: 'http://href/'
                             }
                         }
                     }
                 ]
             })
             class MyLambdaWithSQSRecord {
-
                 @SQSRecord()
                 async onHandler(@Event record: MyRecord): Promise<boolean> {
                     switch (record.index) {
@@ -189,7 +191,7 @@ describe('Partial Failure Unit tests', () => {
                 eventSourceARN: 'arn:aws:sqs:eu-west-1:1234567890:Queue.fifo'
             });
 
-            const handler = (generateHandler(MyLambdaWithSQSRecord)(
+            const handler = generateHandler(MyLambdaWithSQSRecord)(
                 {
                     Records: [
                         buildRecord({ index: 1 }),
@@ -202,46 +204,49 @@ describe('Partial Failure Unit tests', () => {
                     ]
                 },
                 {} as any
-            ) as Promise<boolean[]>);
+            ) as Promise<boolean[]>;
 
             //
-            const consoleMock: jest.SpyInstance = jest.spyOn(console, 'error').mockImplementation(() => {
-            });
+            const consoleMock: jest.SpyInstance = jest
+                .spyOn(console, 'error')
+                .mockImplementation(() => {});
 
             try {
                 await handler;
                 fail('it should have raised an error');
             } catch (e) {
-                expect(`${e}`).toStrictEqual('Error: oops\n' +
-                    'oops too\n' +
-                    'MyRecord: error while validating MyRecord: data should have required property \'index\'');
+                expect(`${e}`).toStrictEqual(
+                    'Error: oops\n' +
+                        'oops too\n' +
+                        "MyRecord: error while validating MyRecord: data must have required property 'index'"
+                );
                 expect(deleteCounter.length).toStrictEqual(1);
-                expect(deleteCounter[0]).toStrictEqual({
-                    'Entries': [
-                        {
-                            'Id': '0',
-                            'ReceiptHandle': 'handle1'
-                        },
-                        {
-                            'Id': '1',
-                            'ReceiptHandle': 'handle2'
-                        },
-                        {
-                            'Id': '2',
-                            'ReceiptHandle': 'handle4'
-                        },
-                        {
-                            'Id': '3',
-                            'ReceiptHandle': 'handle5'
-                        }
-                    ],
-                    'QueueUrl': 'http://href/1234567890/Queue.fifo'
-                });
+                expect(deleteCounter[0].input).toStrictEqual(
+                    new DeleteMessageBatchCommand({
+                        Entries: [
+                            {
+                                Id: '0',
+                                ReceiptHandle: 'handle1'
+                            },
+                            {
+                                Id: '1',
+                                ReceiptHandle: 'handle2'
+                            },
+                            {
+                                Id: '2',
+                                ReceiptHandle: 'handle4'
+                            },
+                            {
+                                Id: '3',
+                                ReceiptHandle: 'handle5'
+                            }
+                        ],
+                        QueueUrl: 'http://href/1234567890/Queue.fifo'
+                    }).input
+                );
                 expect(consoleMock).toHaveBeenCalledTimes(3);
             }
-
         });
-
 
         test('implicit partial failure with @SQSRecord without arg (event bridge payload)', async () => {
             const deleteCounter: any[] = [];
@@ -253,21 +258,20 @@ describe('Partial Failure Unit tests', () => {
             @Lambda({
                 providers: [
                     {
-                        provide: SQS,
+                        provide: SQSClient,
                         useValue: {
-                            deleteMessageBatch: (params: any) => {
+                            send: (params: any) => {
                                 deleteCounter.push(params);
-                                return { promise: () => Promise.resolve() };
+                                return Promise.resolve();
                             },
-                            endpoint: {
-                                href: 'http://href/'
+                            config: {
+                                endpoint: 'http://href/'
                             }
                         }
                     }
                 ]
             })
             class MyLambdaWithSQSRecord {
-
                 @SQSRecord('detail.instruction')
                 async onHandler(@Event record: MyInstruction): Promise<boolean> {
                     switch (record.index) {
@@ -301,7 +305,7 @@ describe('Partial Failure Unit tests', () => {
                 eventSourceARN: 'arn:aws:sqs:eu-west-1:1234567890:Queue.fifo'
             });
 
-            const handler = (generateHandler(MyLambdaWithSQSRecord)(
+            const handler = generateHandler(MyLambdaWithSQSRecord)(
                 {
                     Records: [
                         buildRecord({ index: 1 }),
@@ -313,42 +317,43 @@ describe('Partial Failure Unit tests', () => {
                     ]
                 },
                 {} as any
-            ) as Promise<boolean[]>);
+            ) as Promise<boolean[]>;
 
-            const consoleMock: jest.SpyInstance = jest.spyOn(console, 'error').mockImplementation(() => {
-            });
+            const consoleMock: jest.SpyInstance = jest
+                .spyOn(console, 'error')
+                .mockImplementation(() => {});
 
             try {
                 await handler;
                 fail('it should have raised an error');
             } catch (e) {
                 expect(deleteCounter.length).toStrictEqual(1);
-                expect(deleteCounter[0]).toStrictEqual({
-                    'Entries': [
-                        {
-                            'Id': '0',
-                            'ReceiptHandle': 'handle1'
-                        },
-                        {
-                            'Id': '1',
-                            'ReceiptHandle': 'handle2'
-                        },
-                        {
-                            'Id': '2',
-                            'ReceiptHandle': 'handle4'
-                        },
-                        {
-                            'Id': '3',
-                            'ReceiptHandle': 'handle5'
-                        }
-                    ],
-                    'QueueUrl': 'http://href/1234567890/Queue.fifo'
-                });
+                expect(deleteCounter[0].input).toStrictEqual(
+                    new DeleteMessageBatchCommand({
+                        Entries: [
+                            {
+                                Id: '0',
+                                ReceiptHandle: 'handle1'
+                            },
+                            {
+                                Id: '1',
+                                ReceiptHandle: 'handle2'
+                            },
+                            {
+                                Id: '2',
+                                ReceiptHandle: 'handle4'
+                            },
+                            {
+                                Id: '3',
+                                ReceiptHandle: 'handle5'
+                            }
+                        ],
+                        QueueUrl: 'http://href/1234567890/Queue.fifo'
+                    }).input
+                );
                 expect(consoleMock).toHaveBeenCalledTimes(2);
             }
-
         });
-
 
         test('implicit partial failure with @SQSRecord witouh molder model', async () => {
             const deleteCounter: any[] = [];
@@ -360,14 +365,14 @@ describe('Partial Failure Unit tests', () => {
             @Lambda({
                 providers: [
                     {
-                        provide: SQS,
+                        provide: SQSClient,
                         useValue: {
-                            deleteMessageBatch: (params: any) => {
+                            send: (params: any) => {
                                 deleteCounter.push(params);
-                                return { promise: () => Promise.resolve() };
+                                return Promise.resolve();
                             },
-                            endpoint: {
-                                href: 'http://href/'
+                            config: {
+                                endpoint: 'http://href/'
                             }
                         }
                     }
@@ -394,7 +399,7 @@ describe('Partial Failure Unit tests', () => {
                 eventSourceARN: 'arn:aws:sqs:eu-west-1:1234567890:Queue.fifo'
             });
 
-            const handler = (generateHandler(MyLambdaWithSQSRecord)(
+            const handler = generateHandler(MyLambdaWithSQSRecord)(
                 {
                     Records: [
                         buildRecord({ index: 1, other: true } as any),
@@ -402,36 +407,35 @@ describe('Partial Failure Unit tests', () => {
                     ]
                 },
                 {} as any
-            ) as Promise<boolean[]>);
+            ) as Promise<boolean[]>;
 
-            const consoleMock: jest.SpyInstance = jest.spyOn(console, 'error').mockImplementation(() => {
-            });
+            const consoleMock: jest.SpyInstance = jest
+                .spyOn(console, 'error')
+                .mockImplementation(() => {});
             await handler;
 
             expect(consoleMock).toHaveBeenCalledTimes(0);
-
-
         });
-
     });
-
 
     test('Partial failed different errors', () => {
         @Lambda({
             partialBatchFailure: true,
             providers: [
                 {
-                    provide: SQS,
+                    provide: SQSClient,
                     useValue: {
-                        deleteMessageBatch: (params: any) => {
-                            expect(params).toMatchObject({
-                                Entries: [{ Id: '0', ReceiptHandle: 'abcdef' }],
-                                QueueUrl: 'http://href/1234567890/Queue.fifo'
-                            });
-                            return { promise: () => Promise.resolve() };
+                        send: (params: any) => {
+                            expect(params.input).toMatchObject(
+                                new DeleteMessageBatchCommand({
+                                    Entries: [{ Id: '0', ReceiptHandle: 'abcdef' }],
+                                    QueueUrl: 'http://href/1234567890/Queue.fifo'
+                                }).input
+                            );
+                            return Promise.resolve();
                         },
-                        endpoint: {
-                            href: 'http://href/'
+                        config: {
+                            endpoint: 'http://href/'
                         }
                     }
                 }
@@ -447,50 +451,52 @@ describe('Partial Failure Unit tests', () => {
             }
         }
 
-        const handler = (generateHandler(MyLambda2)(
-            {
-                Records: [
-                    {
-                        attributes: {} as any,
-                        awsRegion: 'eu-west-1',
-                        md5OfBody: 'FFFFF',
-                        messageAttributes: {},
-                        messageId: 'mid1',
-                        body: 'body_1',
-                        receiptHandle: 'abcdef',
-                        eventSource: 'aws:sqs',
-                        eventSourceARN: 'arn:aws:sqs:eu-west-1:1234567890:Queue.fifo'
-                    },
-                    {
-                        attributes: {} as any,
-                        awsRegion: 'eu-west-1',
-                        md5OfBody: 'FFFFF',
-                        messageAttributes: {},
-                        messageId: 'mid2',
-                        body: 'body_2',
-                        receiptHandle: 'ghijklm',
-                        eventSource: 'aws:sqs',
-                        eventSourceARN: 'arn:aws:sqs:eu-west-1:1234567890:Queue.fifo'
-                    },
-                    {
-                        attributes: {} as any,
-                        awsRegion: 'eu-west-1',
-                        md5OfBody: 'FFFFF',
-                        messageAttributes: {},
-                        messageId: 'mid3',
-                        body: 'body_3',
-                        receiptHandle: 'ghijklm',
-                        eventSource: 'aws:sqs',
-                        eventSourceARN: 'arn:aws:sqs:eu-west-1:1234567890:Queue.fifo'
-                    }
-                ]
-            },
-            {} as any
-        ) as Promise<boolean[]>).then(() => {
-        });
+        const handler = (
+            generateHandler(MyLambda2)(
+                {
+                    Records: [
+                        {
+                            attributes: {} as any,
+                            awsRegion: 'eu-west-1',
+                            md5OfBody: 'FFFFF',
+                            messageAttributes: {},
+                            messageId: 'mid1',
+                            body: 'body_1',
+                            receiptHandle: 'abcdef',
+                            eventSource: 'aws:sqs',
+                            eventSourceARN: 'arn:aws:sqs:eu-west-1:1234567890:Queue.fifo'
+                        },
+                        {
+                            attributes: {} as any,
+                            awsRegion: 'eu-west-1',
+                            md5OfBody: 'FFFFF',
+                            messageAttributes: {},
+                            messageId: 'mid2',
+                            body: 'body_2',
+                            receiptHandle: 'ghijklm',
+                            eventSource: 'aws:sqs',
+                            eventSourceARN: 'arn:aws:sqs:eu-west-1:1234567890:Queue.fifo'
+                        },
+                        {
+                            attributes: {} as any,
+                            awsRegion: 'eu-west-1',
+                            md5OfBody: 'FFFFF',
+                            messageAttributes: {},
+                            messageId: 'mid3',
+                            body: 'body_3',
+                            receiptHandle: 'ghijklm',
+                            eventSource: 'aws:sqs',
+                            eventSourceARN: 'arn:aws:sqs:eu-west-1:1234567890:Queue.fifo'
+                        }
+                    ]
+                },
+                {} as any
+            ) as Promise<boolean[]>
+        ).then(() => {});
 
-        const consoleMock: jest.SpyInstance = jest.spyOn(console, 'error').mockImplementation(() => {
-        });
+        const consoleMock: jest.SpyInstance = jest
+            .spyOn(console, 'error')
+            .mockImplementation(() => {});
         return handler.catch((err) => {
             expect(err.message).toStrictEqual('failed\nfailed');
             expect(err.stack).toContain('Error: failed\nfailed'); // better stack trace
@@ -502,25 +508,25 @@ describe('Partial Failure Unit tests', () => {
         class MyPayload {
             @Required name: string;
         }
-        @Lambda({
-        })
+        @Lambda({})
         class MyLambda3bis {
             onHandler(@Event e: MyPayload) {
                 return e;
             }
         }
 
-        const handler = (generateHandler(MyLambda3bis)(
-            {noName: "osef"},
-            {} as any
-        ) as Promise<boolean[]>).then(() => {
-        });
+        const handler = (
+            generateHandler(MyLambda3bis)({ noName: 'osef' }, {} as any) as Promise<boolean[]>
+        ).then(() => {});
 
-        return handler.then(() => fail('it should have failed')).catch((err) => {
-            expect(err.message).toStrictEqual("MyPayload: error while validating MyPayload: data should have required property 'name'");
-        });
+        return handler
+            .then(() => fail('it should have failed'))
+            .catch((err) => {
+                expect(err.message).toStrictEqual(
+                    "MyPayload: error while validating MyPayload: data must have required property 'name'"
+                );
+            });
     });
-
 
     test('Full failed same error', () => {
         @Lambda({
@@ -528,56 +534,59 @@ describe('Partial Failure Unit tests', () => {
         })
         class MyLambda3 {
             onHandler(@Event e: SQSEvent) {
-                return e.Records.map(_ => Promise.reject(new Error('failed')));
+                return e.Records.map((_) => Promise.reject(new Error('failed')));
             }
         }
 
-        const handler = (generateHandler(MyLambda3)(
-            {
-                Records: [
-                    {
-                        attributes: {} as any,
-                        awsRegion: 'eu-west-1',
-                        md5OfBody: 'FFFFF',
-                        messageAttributes: {},
-                        messageId: 'mid1',
-                        body: 'body_1',
-                        receiptHandle: 'abcdef',
-                        eventSource: 'aws:sqs',
-                        eventSourceARN: 'arn:aws:sqs:eu-west-1:1234567890:Queue.fifo'
-                    },
-                    {
-                        attributes: {} as any,
-                        awsRegion: 'eu-west-1',
-                        md5OfBody: 'FFFFF',
-                        messageAttributes: {},
-                        messageId: 'mid2',
-                        body: 'body_2',
-                        receiptHandle: 'ghijklm',
-                        eventSource: 'aws:sqs',
-                        eventSourceARN: 'arn:aws:sqs:eu-west-1:1234567890:Queue.fifo'
-                    },
-                    {
-                        attributes: {} as any,
-                        awsRegion: 'eu-west-1',
-                        md5OfBody: 'FFFFF',
-                        messageAttributes: {},
-                        messageId: 'mid3',
-                        body: 'body_3',
-                        receiptHandle: 'ghijklm',
-                        eventSource: 'aws:sqs',
-                        eventSourceARN: 'arn:aws:sqs:eu-west-1:1234567890:Queue.fifo'
-                    }
-                ]
-            },
-            {} as any
-        ) as Promise<boolean[]>).then(() => {
-        });
+        const handler = (
+            generateHandler(MyLambda3)(
+                {
+                    Records: [
+                        {
+                            attributes: {} as any,
+                            awsRegion: 'eu-west-1',
+                            md5OfBody: 'FFFFF',
+                            messageAttributes: {},
+                            messageId: 'mid1',
+                            body: 'body_1',
+                            receiptHandle: 'abcdef',
+                            eventSource: 'aws:sqs',
+                            eventSourceARN: 'arn:aws:sqs:eu-west-1:1234567890:Queue.fifo'
+                        },
+                        {
+                            attributes: {} as any,
+                            awsRegion: 'eu-west-1',
+                            md5OfBody: 'FFFFF',
+                            messageAttributes: {},
+                            messageId: 'mid2',
+                            body: 'body_2',
+                            receiptHandle: 'ghijklm',
+                            eventSource: 'aws:sqs',
+                            eventSourceARN: 'arn:aws:sqs:eu-west-1:1234567890:Queue.fifo'
+                        },
+                        {
+                            attributes: {} as any,
+                            awsRegion: 'eu-west-1',
+                            md5OfBody: 'FFFFF',
+                            messageAttributes: {},
+                            messageId: 'mid3',
+                            body: 'body_3',
+                            receiptHandle: 'ghijklm',
+                            eventSource: 'aws:sqs',
+                            eventSourceARN: 'arn:aws:sqs:eu-west-1:1234567890:Queue.fifo'
+                        }
+                    ]
+                },
+                {} as any
+            ) as Promise<boolean[]>
+        ).then(() => {});
 
-        return handler.then(() => fail('it should have failed')).catch((err) => {
-            expect(err.message).toStrictEqual('failed');
-            expect(err.stack).toContain('MyLambda3.onHandler');
-        });
+        return handler
+            .then(() => fail('it should have failed'))
+            .catch((err) => {
+                expect(err.message).toStrictEqual('failed');
+                expect(err.stack).toContain('MyLambda3.onHandler');
+            });
     });
 
     test('Full failed differents errors', () => {
@@ -590,49 +599,51 @@ describe('Partial Failure Unit tests', () => {
             }
         }
 
-        const handler = (generateHandler(MyLambda3)(
-            {
-                Records: [
-                    {
-                        attributes: {} as any,
-                        awsRegion: 'eu-west-1',
-                        md5OfBody: 'FFFFF',
-                        messageAttributes: {},
-                        messageId: 'mid1',
-                        body: 'body_1',
-                        receiptHandle: 'abcdef',
-                        eventSource: 'aws:sqs',
-                        eventSourceARN: 'arn:aws:sqs:eu-west-1:1234567890:Queue.fifo'
-                    },
-                    {
-                        attributes: {} as any,
-                        awsRegion: 'eu-west-1',
-                        md5OfBody: 'FFFFF',
-                        messageAttributes: {},
-                        messageId: 'mid2',
-                        body: 'body_2',
-                        receiptHandle: 'ghijklm',
-                        eventSource: 'aws:sqs',
-                        eventSourceARN: 'arn:aws:sqs:eu-west-1:1234567890:Queue.fifo'
-                    },
-                    {
-                        attributes: {} as any,
-                        awsRegion: 'eu-west-1',
-                        md5OfBody: 'FFFFF',
-                        messageAttributes: {},
-                        messageId: 'mid3',
-                        body: 'body_3',
-                        receiptHandle: 'ghijklm',
-                        eventSource: 'aws:sqs',
-                        eventSourceARN: 'arn:aws:sqs:eu-west-1:1234567890:Queue.fifo'
-                    }
-                ]
-            },
-            {} as any
-        ) as Promise<boolean[]>).then(() => {
-        });
-        const consoleMock: jest.SpyInstance = jest.spyOn(console, 'error').mockImplementation(() => {
-        });
+        const handler = (
+            generateHandler(MyLambda3)(
+                {
+                    Records: [
+                        {
+                            attributes: {} as any,
+                            awsRegion: 'eu-west-1',
+                            md5OfBody: 'FFFFF',
+                            messageAttributes: {},
+                            messageId: 'mid1',
+                            body: 'body_1',
+                            receiptHandle: 'abcdef',
+                            eventSource: 'aws:sqs',
+                            eventSourceARN: 'arn:aws:sqs:eu-west-1:1234567890:Queue.fifo'
+                        },
+                        {
+                            attributes: {} as any,
+                            awsRegion: 'eu-west-1',
+                            md5OfBody: 'FFFFF',
+                            messageAttributes: {},
+                            messageId: 'mid2',
+                            body: 'body_2',
+                            receiptHandle: 'ghijklm',
+                            eventSource: 'aws:sqs',
+                            eventSourceARN: 'arn:aws:sqs:eu-west-1:1234567890:Queue.fifo'
+                        },
+                        {
+                            attributes: {} as any,
+                            awsRegion: 'eu-west-1',
+                            md5OfBody: 'FFFFF',
+                            messageAttributes: {},
+                            messageId: 'mid3',
+                            body: 'body_3',
+                            receiptHandle: 'ghijklm',
+                            eventSource: 'aws:sqs',
+                            eventSourceARN: 'arn:aws:sqs:eu-west-1:1234567890:Queue.fifo'
+                        }
+                    ]
+                },
+                {} as any
+            ) as Promise<boolean[]>
+        ).then(() => {});
+        const consoleMock: jest.SpyInstance = jest
+            .spyOn(console, 'error')
+            .mockImplementation(() => {});
 
         return handler.catch((err) => {
             expect(err.message).toStrictEqual('failed\nfailed\nfailed');

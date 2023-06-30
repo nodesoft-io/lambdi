@@ -35,5 +35,8 @@ jobs:
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
+      - name: Login
+        run: npm login
+
       - name: Publish
         run: npm publish build/ --access public

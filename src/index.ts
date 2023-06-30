@@ -139,19 +139,6 @@ export function generateHandler<
         process.env.LOGGER_LEVEL as any
     );
 
-    // Capture http(s) requests only if Xray is enabled and http(s) module is loaded
-    if (!process.env.DISABLE_XRAY) {
-        const AWSXRay = require('aws-xray-sdk-core');
-        // @ts-expect-error ts2339 moduleLoadList missing from types
-        if (process.moduleLoadList?.includes?.('NativeModule http')) {
-            AWSXRay.captureHTTPsGlobal(require('http'));
-        }
-        // @ts-expect-error ts2339 moduleLoadList missing from types
-        if (process.moduleLoadList?.includes?.('NativeModule https')) {
-            AWSXRay.captureHTTPsGlobal(require('https'));
-        }
-    }
-
     const di = DependencyInjection.createAndResolve(
         []
             .concat(AWSProviders(), metadata.providers, {

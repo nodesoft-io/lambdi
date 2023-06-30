@@ -1,5 +1,5 @@
 {
-    "name": "@nodesoft/lambdi",
+    "name": "@juneil/lambdi",
     "version": "1.0.0",
     "description": "Lambda with Typescript and DI",
     "main": "index.js",

@@ -8,6 +8,7 @@ import { SNSClient } from '@aws-sdk/client-sns';
 import { SSMClient } from '@aws-sdk/client-ssm';
 import { SFNClient } from '@aws-sdk/client-sfn';
 import { EventBridgeClient } from '@aws-sdk/client-eventbridge';
+import { DynamoDBDocumentClient } from '@aws-sdk/lib-dynamodb';
 
 export { Context };
 
@@ -20,7 +21,7 @@ export const AWSProviders = () =>
     [
         {
             provide: DynamoDBClient,
-            useFactory: () => new DynamoDBClient({}),
+            useFactory: () => DynamoDBDocumentClient.from(new DynamoDBClient({})),
             deps: []
         },
         {
